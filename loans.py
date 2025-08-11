@@ -128,7 +128,7 @@ def extendLoan(loan_id):
         print("Error: Préstamo no encontrado.")
         return False
 
-    if loan_info['user_type'] != 'Profesor':
+    if loan_info['user_type'] != 'Professor':
         print("Error: Solo los Profesores pueden extender préstamos.")
         return False
 
