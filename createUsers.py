@@ -1,6 +1,5 @@
 from users import User
 
-
 estudiante = User.create("Juan Perez", "Student")
 if estudiante:
     print(f"Se ha creado un nuevo estudiante: {estudiante.name}")

@@ -1,2 +1,2 @@
 from loans import makeLoan
-makeLoan(1, 101)
+makeLoan(4, 9)

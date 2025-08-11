@@ -1,6 +1,7 @@
 import mysql.connector
 from db import connect_to_db
 
+
 class User:
     def __init__(self, id, name, user_type, pending_fines):
         self.id = id
@@ -44,7 +45,7 @@ class User:
         finally:
             cursor.close()
             connection.close()
-
+    @staticmethod
     def create(name, user_type):
         connection = connect_to_db()
         if not connection:
