@@ -72,7 +72,7 @@ def checkBookReservations(book_id):
 
     return reservations_count > 0
 
-def return(loan_id):
+def returnBook(loan_id):
     connection = connect_to_db()
     if connection is None:
         return False

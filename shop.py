@@ -1,7 +1,9 @@
 from users import User
 from books import Book
 from db import connect_to_db
+import mysql.connector
 import datetime
+from decimal import Decimal
 
 def verifyFines(user):
     return user.pending_fines <= 20000
@@ -27,7 +29,7 @@ def reserve_stock(book_id, quantity):
         return False
     
     cursor = connection.cursor()
-    reservation_time = datetime.now()
+    reservation_time = datetime.datetime.now()
     
     query = "INSERT INTO stock_reservations (book_id, quantity, reservation_time) VALUES (%s, %s, %s)"
     try:
@@ -68,77 +70,92 @@ def release_expired_reservations():
     cursor.close()
     connection.close()
 
-def purchase(user_id, book_id, quantity, book_type):
+def purchase(user_id, items_to_buy):
     user = User.get_by_id(user_id)
-    book = Book.get_by_id(book_id)
-
-    if book is None:
-        print("Error: Libro no encontrado.")
-        return False
-
     if user is None:
-        print ("Error: Usuario no encontrado")
+        print("Error: Usuario no encontrado.")
         return False
     
     if not verifyFines(user):
-        print("Error: El Usuario tiene pendiente el pago de multas de más de $20.000, no se puede realizar la compra")
+        print("Error: El usuario tiene multas pendientes de más de $20.000 y no puede comprar.")
         return False
 
-    if hasBorrowed(user_id, book_id):
-        print("Error: Actualmente tienes este libro prestado, no puedes comprarlo")
-        return False
+    total_purchase_price = Decimal('0')
+    purchase_details_list = []
+    
 
-    if book_type == 'Digital':
-        price =book.price_digital
-    elif book_type == 'Physical':
-        if book.store_physical_stock < quantity:
-            print("Error: No hay suficientes copias de este libro. Cantidad disponible: {book.store_physical_stock}.")    
-            return False
+    for item in items_to_buy:
+        book_id = item['book_id']
+        quantity = item['quantity']
+        book_type = item['book_type']
 
-        reservation_id = reserve_stock(book_id, quantity)
-        if not reservation_id:
+        book = Book.get_by_id(book_id)
+        if book is None:
+            print(f"Error: Libro con ID {book_id} no encontrado.")
             return False
             
-        price = book.physical_price
-    else:
-        print("Error: Tipo de libro no válido.")
-        return False  
+        if hasBorrowed(user_id, book_id):
+            print(f"Error: No puedes comprar el libro '{book.title}' porque lo tienes prestado.")
+            return False
+        if book_type == 'Digital':
+            base_price = book.digital_price
+        elif book_type == 'Physical':
+            if book.store_physical_stock < quantity:
+                print(f"Error: Stock físico insuficiente para el libro '{book.title}'. Disponible: {book.store_physical_stock}.")
+                return False
+            base_price = book.physical_price
+        else:
+            print(f"Error: Tipo de libro no válido para '{book.title}'.")
+            return False
+        
 
-    totalPrice = price * quantity
-    final_discount = 0
-    if quantity>5:
-        final_discount += 0.15
-    elif quantity>3:
-        final_discount += 0.10
+        discount_amount = Decimal('0')
+        if user.user_type == 'Professor' and book.category == 'Academic':
+            discount_amount += base_price * Decimal('0.20')
+        elif user.user_type == 'Student' and book_type == 'Digital':
+            discount_amount += base_price * Decimal('0.15')
 
-    if user.user_type == 'Professor' and book.category == 'Academic':
-        final_discount += 0.20
-    elif user.user_type == 'Student' and book_type == 'Digital':
-        final_discount += 0.15
-    finalPrice = totalPrice * (1 - final_discount)      
+        final_item_price = (base_price - discount_amount) * Decimal(str(quantity))
+        total_purchase_price += final_item_price
 
+        purchase_details_list.append({
+            'book_id': book_id,
+            'book_type': book_type,
+            'quantity': quantity,
+            'unit_price': base_price,
+            'discount': discount_amount,
+            'final_price': final_item_price
+        })
+    total_quantity_of_books = sum(item['quantity'] for item in items_to_buy)    
+    
+    volume_discount = Decimal('0')
+    if total_quantity_of_books > 5:
+        volume_discount = total_purchase_price * Decimal('0.15')
+    elif total_quantity_of_books  > 3:
+        volume_discount = total_purchase_price * Decimal('0.10')
+
+    final_total_price = total_purchase_price - volume_discount
+    
     connection = connect_to_db()
     if connection is None:
         return False
-
     cursor = connection.cursor()
 
     try:
+
         purchase_query = "INSERT INTO purchases (user_id, purchase_date, total_paid) VALUES (%s, %s, %s)"
-        cursor.execute(purchase_query, (user_id, datetime.date.today(), final_price))
+        cursor.execute(purchase_query, (user_id, datetime.date.today(), final_total_price))
         purchase_id = cursor.lastrowid
 
-        details_query = "INSERT INTO purchase_details (purchase_id, book_id, book_type, quantity, unit_price, discount) VALUES (%s, %s, %s, %s, %s, %s)"
-        cursor.execute(details_query, (purchase_id, book_id, book_type, quantity, price, discount_amount))
-        
-        if book_type == 'Physical':
-            update_stock_query = "UPDATE books SET store_physical_stock = store_physical_stock - %s WHERE id = %s"
-            cursor.execute(update_stock_query, (quantity, book_id))
-            delete_reserve_query = "DELETE FROM stock_reservations WHERE id = %s"
-            cursor.execute(delete_reserve_query, (reservation_id,))
+        for item in purchase_details_list:
+            details_query = "INSERT INTO purchase_details (purchase_id, book_id, book_type, quantity, unit_price, discount) VALUES (%s, %s, %s, %s, %s, %s)"
+            cursor.execute(details_query, (purchase_id, item['book_id'], item['book_type'], item['quantity'], item['unit_price'], item['discount']))
+            if item['book_type'] == 'Physical':
+                update_stock_query = "UPDATE books SET store_physical_stock = store_physical_stock - %s WHERE id = %s"
+                cursor.execute(update_stock_query, (item['quantity'], item['book_id']))
         
         connection.commit()
-        print(f"Compra realizada con éxito. Total pagado: ${final_price:.2f}.")
+        print(f"Compra realizada con éxito. Total pagado: ${final_total_price:.2f}.")
         return True
     except mysql.connector.Error as err:
         print(f"Error al registrar la compra: {err}")

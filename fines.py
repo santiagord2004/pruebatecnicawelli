@@ -9,7 +9,7 @@ def putFines(user_id, loan_id, amount, reason):
     
     cursor = connection.cursor()
 
-    query = "INSERT INTO fines (user_id, loan_id, monto, razon, fecha_creacion) VALUES (%s, %s, %s, %s, %s)"
+    query = "INSERT INTO fines (user_id, loan_id, amount, reason, creation_date) VALUES (%s, %s, %s, %s, %s)"
     user_update_query = "UPDATE users SET pending_fines = pending_fines + %s WHERE id = %s"
     today = datetime.date.today()
 
@@ -45,7 +45,7 @@ def lostBook(loan_id):
     putFines(loan_info['user_id'], loan_id, fine_amount, "Pérdida de libro prestado")
     
     update_loan_query = "UPDATE loans SET status = 'Lost' WHERE id = %s"
-    update_book_query = "UPDATE books SET status = 'Mantenimiento' WHERE id = %s" 
+    update_book_query = "UPDATE books SET status = 'Maintenance' WHERE id = %s" 
     
     try:
         cursor.execute(update_loan_query, (loan_id,))

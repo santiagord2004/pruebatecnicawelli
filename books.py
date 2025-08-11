@@ -2,7 +2,7 @@ import mysql.connector
 from db import connect_to_db
 
 class Book:
-    def __init__(self, id, title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price):
+    def __init__(self, id, title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price, status):
         self.id = id
         self.title = title
         self.category = category
@@ -12,6 +12,8 @@ class Book:
         self.minimum_stock = minimum_stock
         self.physical_price = physical_price
         self.digital_price = digital_price
+        self.status = status
+        
     @staticmethod
     def get_by_id(book_id):
         connection = connect_to_db()
@@ -30,19 +32,19 @@ class Book:
         return None
 
     @staticmethod
-    def create(title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price):
+    def create(title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price, status):
         connection = connect_to_db()
         if connection is None:
             return None
         
         cursor = connection.cursor()
-        query = """INSERT INTO books (title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+        query = """INSERT INTO books (title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
         try:
-            cursor.execute(query, (title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price))
+            cursor.execute(query, (title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price, status))
             connection.commit()
             book_id = cursor.lastrowid
             print(f"El libro '{title}' creado con éxito. ID: {book_id}")
-            return Book(book_id, title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price)
+            return Book(book_id, title, category, loanable_physical_copies, store_physical_stock, store_digital_stock, minimum_stock, physical_price, digital_price, status)
         except mysql.connector.Error as err:
             print(f"Error al crear el libro: {err}")
             connection.rollback()
